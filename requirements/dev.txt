@@ -1,3 +1,4 @@
 -r base.txt
 -r codestyle.txt
 -r tests.txt
+pre-commit
