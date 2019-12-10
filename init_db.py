@@ -2,9 +2,20 @@
 from sqlalchemy import MetaData, create_engine
 
 from polls.db import choice, question
-from polls.settings import config
+from polls.settings import BASE_DIR, get_config, config
 
 DSN = "postgresql://{user}:{password}@{host}:{port}/{database}"
+ADMIN_DB_URL = DSN.format(
+    user="postgres",
+    password="postgres",
+    database="postgres",
+    host="localhost",
+    port=5432,
+)
+TEST_CONFIG_PATH = BASE_DIR / "config" / "polls.yaml"
+TEST_CONFIG = get_config(["-c", TEST_CONFIG_PATH.as_posix()])
+TEST_DB_URL = DSN.format(**TEST_CONFIG["postgres"])
+test_engine = create_engine(TEST_DB_URL)
 
 
 def create_tables(engine):
@@ -32,6 +43,50 @@ def sample_data(engine):
         ],
     )
     conn.close()
+
+
+admin_engine = create_engine(ADMIN_DB_URL, isolation_level="AUTOCOMMIT")
+
+
+def setup_db(config):
+
+    db_name = config["database"]
+    db_user = config["user"]
+    db_pass = config["password"]
+
+    conn = admin_engine.connect()
+    conn.execute("DROP DATABASE IF EXISTS %s" % db_name)
+    conn.execute("DROP ROLE IF EXISTS %s" % db_user)
+    conn.execute("CREATE USER %s WITH PASSWORD '%s'" % (db_user, db_pass))
+    conn.execute("CREATE DATABASE %s ENCODING 'UTF8'" % db_name)
+    conn.execute(
+        "GRANT ALL PRIVILEGES ON DATABASE %s TO %s" % (db_name, db_user)
+    )
+    conn.close()
+
+
+def teardown_db(config):
+
+    db_name = config["database"]
+    db_user = config["user"]
+
+    conn = admin_engine.connect()
+    conn.execute(
+        """
+      SELECT pg_terminate_backend(pg_stat_activity.pid)
+      FROM pg_stat_activity
+      WHERE pg_stat_activity.datname = '%s'
+        AND pid <> pg_backend_pid();"""
+        % db_name
+    )
+    conn.execute("DROP DATABASE IF EXISTS %s" % db_name)
+    conn.execute("DROP ROLE IF EXISTS %s" % db_user)
+    conn.close()
+
+
+def drop_tables(engine=test_engine):
+    meta = MetaData()
+    meta.drop_all(bind=engine, tables=[question, choice])
 
 
 if __name__ == "__main__":

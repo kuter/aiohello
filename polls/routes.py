@@ -1,6 +1,6 @@
 import pathlib
 
-from views import index, poll, results, vote
+from .views import index, poll, results, vote
 
 PROJECT_ROOT = pathlib.Path(__file__).parent
 
