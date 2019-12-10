@@ -1,4 +1,3 @@
-# aiohttpdemo_polls/settings.py
 import pathlib
 
 import yaml
